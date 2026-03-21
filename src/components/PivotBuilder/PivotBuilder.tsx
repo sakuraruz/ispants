@@ -1,11 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Save, FolderOpen, Sparkles, RefreshCw } from 'lucide-react';
+import { Plus, Save, FolderOpen, Sparkles, RefreshCw, Database } from 'lucide-react';
 import { usePivot } from '../../hooks/usePivot';
 import { AttributeSelector } from './AttributeSelector';
 import { PivotTable } from './PivotTable';
+import { VirtualTable } from '../VirtualTable/VirtualTable';
 import { NaturalLanguageInput } from '../AIPanel/NaturalLanguageInput';
 import { AIPanel } from '../AIPanel/AIPanel';
+import { CSVUploader } from '../UI/CSVUploader';
+import { Button } from '../UI/Button';
 import { AggregationType } from '../../types';
+
+interface Column {
+  id: string;
+  name: string;
+  type: 'number' | 'string' | 'date';
+  width: number;
+}
 
 export function PivotBuilder() {
   const {
@@ -27,6 +37,11 @@ export function PivotBuilder() {
   const [showAIPanel, setShowAIPanel] = useState(true);
   const [saveName, setSaveName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  
+  // Состояния для CSV данных
+  const [csvData, setCsvData] = useState<any[] | null>(null);
+  const [csvColumns, setCsvColumns] = useState<Column[] | null>(null);
+  const [showTableView, setShowTableView] = useState<'pivot' | 'table'>('pivot');
 
   useEffect(() => {
     loadAttributes();
@@ -37,6 +52,22 @@ export function PivotBuilder() {
       getRecommendations();
     }
   }, [attributes]);
+
+  const handleCSVDataLoaded = (data: any[], columns: Column[]) => {
+    setCsvData(data);
+    setCsvColumns(columns);
+    setShowTableView('table');
+    
+    // Конвертируем колонки CSV в атрибуты для сводной таблицы
+    const csvAttributes = columns.map(col => ({
+      name: col.name,
+      type: col.type === 'number' ? 'measure' as const : 'dimension' as const,
+      dataType: col.type
+    }));
+    
+    // Обновляем атрибуты (для демо - в реальном проекте нужно через API)
+    // Здесь можно добавить логику для обновления атрибутов
+  };
 
   const handleBuildPivot = async () => {
     if (rows.length === 0 && columns.length === 0 && values.length === 0) {
@@ -101,30 +132,58 @@ export function PivotBuilder() {
             </p>
           </div>
           <div className="flex gap-2">
-            <button
+            <Button
+              variant={showAIPanel ? 'primary' : 'outline'}
+              size="sm"
               onClick={() => setShowAIPanel(!showAIPanel)}
-              className={`px-3 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-                showAIPanel 
-                  ? 'bg-green-600 text-white' 
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-4 h-4 mr-1" />
               AI-помощник
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setShowSaveDialog(true)}
-              className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
             >
-              <Save className="w-4 h-4" />
+              <Save className="w-4 h-4 mr-1" />
               Сохранить
-            </button>
+            </Button>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* CSV Upload Section */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Database className="w-5 h-5 text-green-600" />
+              Загрузка данных
+            </h2>
+            {csvData && (
+              <div className="flex gap-2">
+                <Button
+                  variant={showTableView === 'pivot' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => setShowTableView('pivot')}
+                >
+                  Сводная таблица
+                </Button>
+                <Button
+                  variant={showTableView === 'table' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => setShowTableView('table')}
+                >
+                  Таблица данных
+                </Button>
+              </div>
+            )}
+          </div>
+          <CSVUploader onDataLoaded={handleCSVDataLoaded} isDisabled={isLoading} />
+        </div>
+
+        {/* Controls and Table */}
         <div className="flex gap-6">
           {/* Sidebar - Controls */}
           <div className="w-80 flex-shrink-0 space-y-4">
@@ -155,18 +214,18 @@ export function PivotBuilder() {
               allowAggregation
             />
             
-            <button
+            <Button
               onClick={handleBuildPivot}
               disabled={!canBuild || isLoading}
-              className="w-full py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              fullWidth
             >
               {isLoading ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <RefreshCw className="w-4 h-4 animate-spin mr-1" />
               ) : (
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 mr-1" />
               )}
               Построить таблицу
-            </button>
+            </Button>
             
             {showAIPanel && (
               <AIPanel
@@ -191,8 +250,16 @@ export function PivotBuilder() {
             />
             
             <div className="mt-4">
-              {isLoading && !pivotData ? (
-                <div className="flex items-center justify-center h-64 bg-white rounded-lg border border-gray-200">
+              {showTableView === 'table' && csvData && csvColumns ? (
+                <div className="h-[600px]">
+                  <VirtualTable
+                    data={csvData}
+                    columns={csvColumns}
+                    onDataChange={setCsvData}
+                  />
+                </div>
+              ) : isLoading && !pivotData ? (
+                <div className="flex items-center justify-center h-96 bg-white rounded-lg border border-gray-200">
                   <div className="text-center">
                     <RefreshCw className="w-8 h-8 text-green-600 animate-spin mx-auto mb-2" />
                     <p className="text-gray-500">Построение таблицы...</p>
@@ -200,14 +267,28 @@ export function PivotBuilder() {
                 </div>
               ) : pivotData ? (
                 <PivotTable data={pivotData} />
+              ) : csvData ? (
+                <div className="flex items-center justify-center h-96 bg-white rounded-lg border border-gray-200">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Database className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <p className="text-gray-500">
+                      Данные загружены. Выберите поля и нажмите "Построить таблицу"
+                    </p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Всего строк: {csvData.length}
+                    </p>
+                  </div>
+                </div>
               ) : (
-                <div className="flex items-center justify-center h-64 bg-white rounded-lg border border-gray-200">
+                <div className="flex items-center justify-center h-96 bg-white rounded-lg border border-gray-200">
                   <div className="text-center">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
                       <Sparkles className="w-8 h-8 text-gray-400" />
                     </div>
                     <p className="text-gray-500">
-                      Выберите поля и нажмите "Построить таблицу"
+                      Загрузите CSV файл или выберите поля и нажмите "Построить таблицу"
                     </p>
                     <p className="text-sm text-gray-400 mt-1">
                       Или используйте AI-помощник для автоматического построения
@@ -218,10 +299,10 @@ export function PivotBuilder() {
             </div>
             
             {/* Stats */}
-            {pivotData && (
+            {csvData && (
               <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
                 <div>
-                  📊 {pivotData.rows.length} строк × {pivotData.columns.length} колонок
+                  📊 Загружено: {csvData.length.toLocaleString()} строк
                 </div>
                 <div>
                   🔄 Обновлено: {new Date().toLocaleTimeString()}
@@ -247,22 +328,23 @@ export function PivotBuilder() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
             <div className="flex gap-3">
-              <button
+              <Button
+                variant="outline"
                 onClick={() => setShowSaveDialog(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                fullWidth
               >
                 Отмена
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   // TODO: Implement save
                   setShowSaveDialog(false);
                 }}
                 disabled={!saveName.trim()}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                fullWidth
               >
                 Сохранить
-              </button>
+              </Button>
             </div>
           </div>
         </div>
