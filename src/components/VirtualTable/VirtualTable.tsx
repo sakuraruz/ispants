@@ -31,7 +31,6 @@ interface Filter {
 }
 
 export function VirtualTable({ data, columns, onDataChange, isLoading = false }: VirtualTableProps) {
-  const [editingCell, setEditingCell] = useState<{ rowIndex: number; columnId: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null);
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>(
@@ -120,22 +119,6 @@ export function VirtualTable({ data, columns, onDataChange, isLoading = false }:
     overscan: 5,
   });
 
-  const handleCellEdit = useCallback((rowIndex: number, columnId: string, value: string) => {
-    if (!onDataChange) return;
-    
-    const newData = [...data];
-    const actualRowIndex = sortedData.indexOf(data[rowIndex]);
-    
-    if (actualRowIndex !== -1) {
-      newData[actualRowIndex] = {
-        ...newData[actualRowIndex],
-        [columnId]: value,
-      };
-      onDataChange(newData);
-    }
-    setEditingCell(null);
-  }, [data, sortedData, onDataChange]);
-
   const handleSort = (columnId: string) => {
     setSortConfig(current => {
       if (current?.columnId === columnId) {
@@ -152,12 +135,6 @@ export function VirtualTable({ data, columns, onDataChange, isLoading = false }:
       ...prev,
       [columnId]: Math.max(60, (prev[columnId] || 150) + delta)
     }));
-  };
-
-  const handleReset = () => {
-    setSearchQuery('');
-    setSortConfig(null);
-    setFilters([]);
   };
 
   const handleExport = () => {
@@ -241,11 +218,6 @@ export function VirtualTable({ data, columns, onDataChange, isLoading = false }:
     <div className="flex flex-col h-full bg-white rounded-lg border border-gray-200 overflow-hidden">
       {/* Toolbar */}
       <div className="flex items-center gap-3 p-3 border-b border-gray-200 bg-gray-50 flex-wrap">
-        <Button variant="outline" size="sm" onClick={handleReset}>
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          Сбросить
-        </Button>
-        
         <div className="flex-1 min-w-[200px]">
           <Input
             placeholder="Поиск по таблице..."
@@ -448,8 +420,6 @@ export function VirtualTable({ data, columns, onDataChange, isLoading = false }:
                 {columnVirtualizer.getVirtualItems().map((virtualColumn) => {
                   const column = columns[virtualColumn.index];
                   const cellValue = row[column.id];
-                  const isEditing = editingCell?.rowIndex === virtualRow.index && 
-                                   editingCell?.columnId === column.id;
                   
                   return (
                     <div
@@ -460,28 +430,10 @@ export function VirtualTable({ data, columns, onDataChange, isLoading = false }:
                         width: `${columnWidths[column.id] || 150}px`,
                         height: '100%',
                       }}
-                      onDoubleClick={() => setEditingCell({ rowIndex: virtualRow.index, columnId: column.id })}
                     >
-                      {isEditing ? (
-                        <input
-                          type="text"
-                          defaultValue={String(cellValue ?? '')}
-                          autoFocus
-                          className="w-full h-full px-2 border-2 border-green-500 focus:outline-none text-sm"
-                          onBlur={(e) => handleCellEdit(virtualRow.index, column.id, e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              handleCellEdit(virtualRow.index, column.id, e.currentTarget.value);
-                            } else if (e.key === 'Escape') {
-                              setEditingCell(null);
-                            }
-                          }}
-                        />
-                      ) : (
-                        <div className="px-2 py-1 text-sm text-gray-900 truncate w-full">
-                          {cellValue !== undefined && cellValue !== null ? String(cellValue) : '-'}
-                        </div>
-                      )}
+                      <div className="px-2 py-1 text-sm text-gray-900 truncate w-full">
+                        {cellValue !== undefined && cellValue !== null ? String(cellValue) : '-'}
+                      </div>
                     </div>
                   );
                 })}

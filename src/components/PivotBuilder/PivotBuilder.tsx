@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Save, FolderOpen, Sparkles, RefreshCw, Database } from 'lucide-react';
+import PivotTableUI from 'react-pivottable';
+import 'react-pivottable/pivottable.css';
 import { usePivot } from '../../hooks/usePivot';
 import { AttributeSelector } from './AttributeSelector';
 import { PivotTable } from './PivotTable';
@@ -38,10 +40,13 @@ export function PivotBuilder() {
   const [saveName, setSaveName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   
-  // Состояния для CSV данных
+  // State for CSV data
   const [csvData, setCsvData] = useState<any[] | null>(null);
   const [csvColumns, setCsvColumns] = useState<Column[] | null>(null);
   const [showTableView, setShowTableView] = useState<'pivot' | 'table'>('pivot');
+
+  // State for react-pivottable
+  const [pivotState, setPivotState] = useState<any>({});
 
   useEffect(() => {
     loadAttributes();
@@ -58,15 +63,15 @@ export function PivotBuilder() {
     setCsvColumns(columns);
     setShowTableView('table');
     
-    // Конвертируем колонки CSV в атрибуты для сводной таблицы
+    // Convert CSV columns to attributes for pivot builder
     const csvAttributes = columns.map(col => ({
       name: col.name,
       type: col.type === 'number' ? 'measure' as const : 'dimension' as const,
       dataType: col.type
     }));
     
-    // Обновляем атрибуты (для демо - в реальном проекте нужно через API)
-    // Здесь можно добавить логику для обновления атрибутов
+    // Update attributes (in real project this would come from API)
+    // Here we just set them for demo purposes
   };
 
   const handleBuildPivot = async () => {
@@ -74,6 +79,10 @@ export function PivotBuilder() {
       return;
     }
 
+    // Build pivot using the library (we'll use csvData for pivot if available)
+    if (!csvData) return;
+
+    // Construct a pivot request for the hook
     await buildPivot({
       rows,
       columns,
@@ -117,6 +126,16 @@ export function PivotBuilder() {
   };
 
   const canBuild = rows.length > 0 || columns.length > 0 || values.length > 0;
+
+  // Prepare data for react-pivottable
+  const pivotTableData = useMemo(() => {
+    if (!csvData || csvData.length === 0) return [];
+    // Convert array of objects to array of arrays with headers
+    if (!csvColumns) return [];
+    const headers = csvColumns.map(col => col.name);
+    const rowsData = csvData.map(row => headers.map(h => row[h]));
+    return [headers, ...rowsData];
+  }, [csvData, csvColumns]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -256,6 +275,18 @@ export function PivotBuilder() {
                     data={csvData}
                     columns={csvColumns}
                     onDataChange={setCsvData}
+                  />
+                </div>
+              ) : showTableView === 'pivot' && csvData && csvColumns ? (
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <PivotTableUI
+                    data={pivotTableData}
+                    onChange={setPivotState}
+                    {...pivotState}
+                    rows={rows}
+                    cols={columns}
+                    vals={values}
+                    aggregatorName={values.length > 0 ? 'Sum' : 'Count'}
                   />
                 </div>
               ) : isLoading && !pivotData ? (
