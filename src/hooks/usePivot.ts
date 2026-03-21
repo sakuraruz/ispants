@@ -3,9 +3,7 @@ import { pivotService } from '../services/pivotService';
 import { 
   PivotRequest, 
   PivotResponse, 
-  Attribute, 
-  AggregationType,
-  RecommendedPivot 
+  Attribute
 } from '../types';
 
 export function usePivot() {
@@ -13,13 +11,11 @@ export function usePivot() {
   const [pivotData, setPivotData] = useState<PivotResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [recommendations, setRecommendations] = useState<RecommendedPivot | null>(null);
 
   const loadAttributes = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      // Use pivotService which returns mock data if backend fails
       const data = await pivotService.getAttributes();
       setAttributes(data);
     } catch (err) {
@@ -39,29 +35,6 @@ export function usePivot() {
       return data;
     } catch (err) {
       setError('Ошибка построения сводной таблицы');
-      console.error(err);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const getRecommendations = useCallback(async (context?: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // Mock recommendation for now
-      const mockRecommendation: RecommendedPivot = {
-        rows: ['Регион'],
-        columns: ['Категория'],
-        values: [{ field: 'Сумма продаж', aggregation: 'sum' }],
-        confidence: 0.85,
-        explanation: 'Показывает распределение продаж по регионам и категориям.'
-      };
-      setRecommendations(mockRecommendation);
-      return mockRecommendation;
-    } catch (err) {
-      setError('Ошибка получения рекомендаций');
       console.error(err);
       throw err;
     } finally {
@@ -95,10 +68,8 @@ export function usePivot() {
     pivotData,
     isLoading,
     error,
-    recommendations,
     loadAttributes,
     buildPivot,
-    getRecommendations,
     processNaturalLanguage
   };
 }

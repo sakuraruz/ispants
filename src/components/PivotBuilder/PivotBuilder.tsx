@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Save, FolderOpen, Sparkles, RefreshCw, Database } from 'lucide-react';
+import { Save, FolderOpen, Sparkles, RefreshCw, Database } from 'lucide-react';
 import PivotTableUI from 'react-pivottable';
 import 'react-pivottable/pivottable.css';
 import { usePivot } from '../../hooks/usePivot';
-import { AttributeSelector } from './AttributeSelector';
 import { PivotTable } from './PivotTable';
 import { VirtualTable } from '../VirtualTable/VirtualTable';
 import { NaturalLanguageInput } from '../AIPanel/NaturalLanguageInput';
-import { AIPanel } from '../AIPanel/AIPanel';
 import { CSVUploader } from '../UI/CSVUploader';
 import { Button } from '../UI/Button';
 import { AggregationType } from '../../types';
@@ -25,10 +23,8 @@ export function PivotBuilder() {
     pivotData,
     isLoading,
     error,
-    recommendations,
     loadAttributes,
     buildPivot,
-    getRecommendations,
     processNaturalLanguage
   } = usePivot();
 
@@ -36,7 +32,6 @@ export function PivotBuilder() {
   const [columns, setColumns] = useState<string[]>([]);
   const [values, setValues] = useState<string[]>([]);
   const [aggregations, setAggregations] = useState<Record<string, AggregationType>>({});
-  const [showAIPanel, setShowAIPanel] = useState(true);
   const [saveName, setSaveName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   
@@ -52,45 +47,10 @@ export function PivotBuilder() {
     loadAttributes();
   }, []);
 
-  useEffect(() => {
-    if (attributes.length > 0 && rows.length === 0 && columns.length === 0 && values.length === 0) {
-      getRecommendations();
-    }
-  }, [attributes]);
-
   const handleCSVDataLoaded = (data: any[], columns: Column[]) => {
     setCsvData(data);
     setCsvColumns(columns);
     setShowTableView('table');
-    
-    // Convert CSV columns to attributes for pivot builder
-    const csvAttributes = columns.map(col => ({
-      name: col.name,
-      type: col.type === 'number' ? 'measure' as const : 'dimension' as const,
-      dataType: col.type
-    }));
-    
-    // Update attributes (in real project this would come from API)
-    // Here we just set them for demo purposes
-  };
-
-  const handleBuildPivot = async () => {
-    if (rows.length === 0 && columns.length === 0 && values.length === 0) {
-      return;
-    }
-
-    // Build pivot using the library (we'll use csvData for pivot if available)
-    if (!csvData) return;
-
-    // Construct a pivot request for the hook
-    await buildPivot({
-      rows,
-      columns,
-      values: values.map(field => ({
-        field,
-        aggregation: aggregations[field] || 'sum'
-      }))
-    });
   };
 
   const handleNaturalLanguageQuery = async (query: string) => {
@@ -104,33 +64,20 @@ export function PivotBuilder() {
       newAggregations[v.field] = v.aggregation;
     });
     setAggregations(newAggregations);
-  };
-
-  const handleApplyRecommendation = async (rec: typeof recommendations) => {
-    if (!rec) return;
-    setRows(rec.rows);
-    setColumns(rec.columns);
-    setValues(rec.values.map(v => v.field));
     
-    const newAggregations: Record<string, AggregationType> = {};
-    rec.values.forEach(v => {
-      newAggregations[v.field] = v.aggregation;
-    });
-    setAggregations(newAggregations);
-    
-    await buildPivot({
-      rows: rec.rows,
-      columns: rec.columns,
-      values: rec.values
-    });
+    // Automatically build pivot after AI query
+    if (csvData) {
+      await buildPivot({
+        rows: result.pivotRequest.rows,
+        columns: result.pivotRequest.columns,
+        values: result.pivotRequest.values
+      });
+    }
   };
-
-  const canBuild = rows.length > 0 || columns.length > 0 || values.length > 0;
 
   // Prepare data for react-pivottable
   const pivotTableData = useMemo(() => {
     if (!csvData || csvData.length === 0) return [];
-    // Convert array of objects to array of arrays with headers
     if (!csvColumns) return [];
     const headers = csvColumns.map(col => col.name);
     const rowsData = csvData.map(row => headers.map(h => row[h]));
@@ -151,14 +98,6 @@ export function PivotBuilder() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant={showAIPanel ? 'primary' : 'outline'}
-              size="sm"
-              onClick={() => setShowAIPanel(!showAIPanel)}
-            >
-              <Sparkles className="w-4 h-4 mr-1" />
-              AI-помощник
-            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -202,60 +141,18 @@ export function PivotBuilder() {
           <CSVUploader onDataLoaded={handleCSVDataLoaded} isDisabled={isLoading} />
         </div>
 
-        {/* Controls and Table */}
-        <div className="flex gap-6">
-          {/* Sidebar - Controls */}
-          <div className="w-80 flex-shrink-0 space-y-4">
-            <AttributeSelector
-              title="Строки"
-              attributes={attributes}
-              selected={rows}
-              onChange={setRows}
-              type="dimension"
+        {/* AI Assistant */}
+        {csvData && (
+          <div className="mb-6">
+            <NaturalLanguageInput
+              onSubmit={handleNaturalLanguageQuery}
+              isLoading={isLoading}
             />
-            
-            <AttributeSelector
-              title="Колонки"
-              attributes={attributes}
-              selected={columns}
-              onChange={setColumns}
-              type="dimension"
-            />
-            
-            <AttributeSelector
-              title="Значения"
-              attributes={attributes}
-              selected={values}
-              onChange={setValues}
-              selectedAggregations={aggregations}
-              onAggregationChange={(field, agg) => setAggregations(prev => ({ ...prev, [field]: agg }))}
-              type="measure"
-              allowAggregation
-            />
-            
-            <Button
-              onClick={handleBuildPivot}
-              disabled={!canBuild || isLoading}
-              fullWidth
-            >
-              {isLoading ? (
-                <RefreshCw className="w-4 h-4 animate-spin mr-1" />
-              ) : (
-                <Plus className="w-4 h-4 mr-1" />
-              )}
-              Построить таблицу
-            </Button>
-            
-            {showAIPanel && (
-              <AIPanel
-                recommendations={recommendations}
-                onApplyRecommendation={handleApplyRecommendation}
-                isLoading={isLoading}
-              />
-            )}
           </div>
-          
-          {/* Main Area - Table */}
+        )}
+
+        {/* Table Area */}
+        <div className="flex gap-6">
           <div className="flex-1 min-w-0">
             {error && (
               <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
@@ -263,12 +160,7 @@ export function PivotBuilder() {
               </div>
             )}
             
-            <NaturalLanguageInput
-              onSubmit={handleNaturalLanguageQuery}
-              isLoading={isLoading}
-            />
-            
-            <div className="mt-4">
+            <div>
               {showTableView === 'table' && csvData && csvColumns ? (
                 <div className="h-[600px]">
                   <VirtualTable
@@ -305,7 +197,7 @@ export function PivotBuilder() {
                       <Database className="w-8 h-8 text-gray-400" />
                     </div>
                     <p className="text-gray-500">
-                      Данные загружены. Выберите поля и нажмите "Построить таблицу"
+                      Данные загружены. Используйте AI-помощник для построения таблицы
                     </p>
                     <p className="text-sm text-gray-400 mt-1">
                       Всего строк: {csvData.length}
@@ -319,10 +211,7 @@ export function PivotBuilder() {
                       <Sparkles className="w-8 h-8 text-gray-400" />
                     </div>
                     <p className="text-gray-500">
-                      Загрузите CSV файл или выберите поля и нажмите "Построить таблицу"
-                    </p>
-                    <p className="text-sm text-gray-400 mt-1">
-                      Или используйте AI-помощник для автоматического построения
+                      Загрузите CSV файл и используйте AI-помощник
                     </p>
                   </div>
                 </div>
@@ -368,7 +257,6 @@ export function PivotBuilder() {
               </Button>
               <Button
                 onClick={() => {
-                  // TODO: Implement save
                   setShowSaveDialog(false);
                 }}
                 disabled={!saveName.trim()}
