@@ -5,7 +5,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@SpringBootApplication
+// ДОБАВЛЕН ПАРАМЕТР scanBasePackages
+@SpringBootApplication(scanBasePackages = {"org.example", "service", "repository", "dto"})
 @RestController
 public class Main {
 
