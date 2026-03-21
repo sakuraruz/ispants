@@ -1,0 +1,21 @@
+# Файл: ispants/docker-compose.yml
+version: '3.8'
+
+services:
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: ispants_postgres
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: rootpassword
+      POSTGRES_DB: analytics_db
+    ports:
+      - "5432:5432"
+    volumes:
+      # Сохраняем данные, чтобы они не удалялись при перезапуске
+      - pgdata:/var/lib/postgresql/data
+      # Копируем наш скрипт в специальную папку, которую Postgres запускает при инициализации
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  pgdata:

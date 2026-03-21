@@ -33,21 +33,21 @@
             <version>1.18.36</version>
             <scope>provided</scope>
         </dependency>
-<!--
+
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <version>42.7.9</version>
             <scope>runtime</scope>
-        </dependency> -->
+        </dependency>
 
-        <!-- Source: https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-jdbc
+        <!-- Source: https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-jdbc-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
             <version>4.0.4</version>
             <scope>compile</scope>
-        </dependency> -->
+        </dependency>
     </dependencies>
 
     <build>
