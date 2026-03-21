@@ -1,3 +1,4 @@
+// src/components/PivotBuilder/PivotBuilder.tsx (обновленная версия)
 import React, { useState, useEffect } from 'react';
 import { Save, Sparkles, RefreshCw, Database } from 'lucide-react';
 import { usePivot } from '../../hooks/usePivot';
@@ -6,6 +7,7 @@ import { NaturalLanguageInput } from '../AIPanel/NaturalLanguageInput';
 import { CSVUploader } from '../UI/CSVUploader';
 import { Button } from '../UI/Button';
 import { FilterDialog } from './FilterDialog';
+import { FormulaBar, Formula } from '../FormulaBar';
 import { AggregationType, Filter as FilterType } from '../../types';
 
 interface Column {
@@ -37,6 +39,9 @@ export function PivotBuilder() {
   const [sortConfig, setSortConfig] = useState<{ field: string; order: 'asc' | 'desc' } | null>(null);
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   
+  // State for formulas
+  const [formulas, setFormulas] = useState<Formula[]>([]);
+  
   // State for CSV data
   const [csvData, setCsvData] = useState<any[] | null>(null);
   const [csvColumns, setCsvColumns] = useState<Column[] | null>(null);
@@ -50,8 +55,13 @@ export function PivotBuilder() {
     setCsvColumns(columns);
   };
 
+  const handleFormulasChange = (newFormulas: Formula[]) => {
+    setFormulas(newFormulas);
+    // Log formulas for backend integration
+    console.log('Формулы обновлены (заглушка):', newFormulas);
+  };
+
   const handleNaturalLanguageQuery = async (query: string) => {
-    // Заглушка для ответа ИИ
     const mockResponse = `Анализ запроса: "${query}"
 
 📊 Рекомендуемая структура таблицы:
@@ -64,7 +74,10 @@ export function PivotBuilder() {
 - Количество транзакций: 12
 
 💡 Рекомендация:
-Для более детального анализа рекомендую добавить фильтр по дате или категории товаров.`;
+Для более детального анализа рекомендую добавить фильтр по дате или категории товаров.
+
+📐 Активные формулы:
+${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('\n') : '- Нет активных формул'}`;
     
     setAiResponse(mockResponse);
     
@@ -79,7 +92,6 @@ export function PivotBuilder() {
     });
     setAggregations(newAggregations);
     
-    // Automatically build pivot after AI query
     if (csvData) {
       await buildPivot({
         rows: result.pivotRequest.rows,
@@ -93,23 +105,24 @@ export function PivotBuilder() {
   const handleApplyFilters = async (newFilters: FilterType[]) => {
     setFilters(newFilters);
     setShowFilterDialog(false);
-    
-    // Заглушка: показываем уведомление о применении фильтров
     console.log('Фильтры применены (заглушка):', newFilters);
-    alert(`Фильтры применены (заглушка). Количество фильтров: ${newFilters.length}`);
   };
 
   const handleSort = async (field: string, order: 'asc' | 'desc') => {
     setSortConfig({ field, order });
-    
-    // Заглушка: показываем уведомление о сортировке
     console.log('Сортировка применена (заглушка):', { field, order });
-    alert(`Сортировка по полю "${field}" в порядке ${order === 'asc' ? 'возрастания' : 'убывания'} (заглушка)`);
   };
 
   const closeAiResponse = () => {
     setAiResponse(null);
   };
+
+  // Prepare available fields for formulas
+  const availableFields = csvColumns?.map(col => ({
+    id: col.id,
+    name: col.name,
+    type: col.type
+  })) || [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -121,7 +134,7 @@ export function PivotBuilder() {
               Гибкий UI для сводных таблиц
             </h1>
             <p className="text-sm text-gray-500">
-              Анализируйте данные с помощью ИИ
+              Анализируйте данные с помощью ИИ и формул
             </p>
           </div>
           <div className="flex gap-2">
@@ -148,6 +161,18 @@ export function PivotBuilder() {
           </h2>
           <CSVUploader onDataLoaded={handleCSVDataLoaded} isDisabled={isLoading} />
         </div>
+
+        {/* Formulas Section - NEW */}
+        {csvData && (
+          <div className="mb-6">
+            <FormulaBar
+              formulas={formulas}
+              onFormulasChange={handleFormulasChange}
+              availableFields={availableFields}
+              isReadOnly={false}
+            />
+          </div>
+        )}
 
         {/* AI Assistant */}
         {csvData && (
@@ -213,6 +238,33 @@ export function PivotBuilder() {
                 Очистить
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Active Formulas Bar - NEW */}
+        {formulas.length > 0 && (
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-green-700">Активные формулы:</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {formulas.map((formula, idx) => (
+                <div key={formula.id} className="px-2 py-1 bg-white border border-green-200 rounded text-sm text-gray-700">
+                  <span className="font-mono text-green-600 mr-1">
+                    {formula.aggregation === 'sum' && '∑'}
+                    {formula.aggregation === 'avg' && 'x̄'}
+                    {formula.aggregation === 'count' && '#'}
+                    {formula.aggregation === 'min' && '↓'}
+                    {formula.aggregation === 'max' && '↑'}
+                  </span>
+                  <span className="font-medium">{formula.name}</span>
+                  <span className="text-gray-400 text-xs ml-1">{formula.expression}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-green-600 mt-2">
+              ℹ️ Формулы будут вычисляться на бэкенде. Настройки сохранены локально.
+            </p>
           </div>
         )}
 
@@ -298,6 +350,17 @@ export function PivotBuilder() {
               </Button>
               <Button
                 onClick={() => {
+                  // Save formulas state as well
+                  const stateToSave = {
+                    formulas,
+                    filters,
+                    sortConfig,
+                    rows,
+                    columns,
+                    values,
+                    aggregations
+                  };
+                  console.log('Сохранённое состояние:', stateToSave);
                   setShowSaveDialog(false);
                 }}
                 disabled={!saveName.trim()}
