@@ -1,6 +1,6 @@
-import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Search, Filter, Download, Plus, SortAsc, SortDesc, ArrowLeft, Copy, X } from 'lucide-react';
+import { Search, Filter, Download, Copy, SortAsc, SortDesc } from 'lucide-react';
 import { Button } from '../UI/Button';
 import { Input } from '../UI/Input';
 
@@ -21,29 +21,53 @@ interface VirtualTableProps {
   columns: Column[];
   onDataChange?: (data: CellValue[]) => void;
   isLoading?: boolean;
+  onSort?: (field: string, order: 'asc' | 'desc') => void;
+  sortConfig?: { field: string; order: 'asc' | 'desc' } | null;
+  onOpenFilters?: () => void;
+  activeFiltersCount?: number;
 }
 
-interface Filter {
-  columnId: string;
-  operator: 'equals' | 'contains' | 'greater' | 'less' | 'between';
-  value: string;
-  value2?: string;
-}
-
-export function VirtualTable({ data, columns, onDataChange, isLoading = false }: VirtualTableProps) {
+export function VirtualTable({ 
+  data, 
+  columns, 
+  onDataChange, 
+  isLoading = false,
+  onSort,
+  sortConfig,
+  onOpenFilters,
+  activeFiltersCount = 0
+}: VirtualTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null);
+  const [sortConfigLocal, setSortConfigLocal] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null);
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>(
     columns.reduce((acc, col) => ({ ...acc, [col.id]: col.width }), {})
   );
-  const [filters, setFilters] = useState<Filter[]>([]);
-  const [showFilters, setShowFilters] = useState(false);
-  const [selectedColumn, setSelectedColumn] = useState<string | null>(null);
   
   const tableRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
-  // Filter data based on search and filters
+  // Use external sort config if provided, otherwise use local
+  const effectiveSortConfig = onSort ? sortConfig : sortConfigLocal;
+  
+  const handleSortClick = (columnId: string) => {
+    if (onSort) {
+      // Use external sort handler
+      const newOrder = sortConfig?.field === columnId && sortConfig.order === 'asc' ? 'desc' : 'asc';
+      onSort(columnId, newOrder);
+    } else {
+      // Use local sort
+      setSortConfigLocal(current => {
+        if (current?.columnId === columnId) {
+          return current.direction === 'asc' 
+            ? { columnId, direction: 'desc' }
+            : null;
+        }
+        return { columnId, direction: 'asc' };
+      });
+    }
+  };
+
+  // Filter data based on search
   const filteredData = useMemo(() => {
     let result = [...data];
     
@@ -56,51 +80,24 @@ export function VirtualTable({ data, columns, onDataChange, isLoading = false }:
       );
     }
     
-    // Apply custom filters
-    if (filters.length > 0) {
-      result = result.filter(row => {
-        return filters.every(filter => {
-          const value = row[filter.columnId];
-          const filterValue = filter.value;
-          
-          if (!value) return false;
-          
-          switch (filter.operator) {
-            case 'equals':
-              return String(value).toLowerCase() === String(filterValue).toLowerCase();
-            case 'contains':
-              return String(value).toLowerCase().includes(String(filterValue).toLowerCase());
-            case 'greater':
-              return Number(value) > Number(filterValue);
-            case 'less':
-              return Number(value) < Number(filterValue);
-            case 'between':
-              return Number(value) >= Number(filterValue) && 
-                     Number(value) <= Number(filter.value2 || filterValue);
-            default:
-              return true;
-          }
-        });
-      });
-    }
-    
     return result;
-  }, [data, searchQuery, filters]);
+  }, [data, searchQuery]);
 
   // Sort data
   const sortedData = useMemo(() => {
-    if (!sortConfig) return filteredData;
+    const sort = effectiveSortConfig;
+    if (!sort) return filteredData;
     
     return [...filteredData].sort((a, b) => {
-      const aValue = a[sortConfig.columnId];
-      const bValue = b[sortConfig.columnId];
+      const aValue = a[sort.columnId];
+      const bValue = b[sort.columnId];
       
       if (aValue === bValue) return 0;
       
       const comparison = aValue > bValue ? 1 : -1;
-      return sortConfig.direction === 'asc' ? comparison : -comparison;
+      return sort.direction === 'asc' ? comparison : -comparison;
     });
-  }, [filteredData, sortConfig]);
+  }, [filteredData, effectiveSortConfig]);
 
   // Row virtualizer
   const rowVirtualizer = useVirtualizer({
@@ -118,17 +115,6 @@ export function VirtualTable({ data, columns, onDataChange, isLoading = false }:
     estimateSize: (index) => columnWidths[columns[index].id] || 150,
     overscan: 5,
   });
-
-  const handleSort = (columnId: string) => {
-    setSortConfig(current => {
-      if (current?.columnId === columnId) {
-        return current.direction === 'asc' 
-          ? { columnId, direction: 'desc' }
-          : null;
-      }
-      return { columnId, direction: 'asc' };
-    });
-  };
 
   const handleColumnResize = (columnId: string, delta: number) => {
     setColumnWidths(prev => ({
@@ -163,24 +149,6 @@ export function VirtualTable({ data, columns, onDataChange, isLoading = false }:
     const text = `${headers}\n${rows}`;
     await navigator.clipboard.writeText(text);
     alert('Данные скопированы в буфер обмена!');
-  };
-
-  const addFilter = () => {
-    setFilters([...filters, {
-      columnId: columns[0]?.id || '',
-      operator: 'contains',
-      value: ''
-    }]);
-  };
-
-  const removeFilter = (index: number) => {
-    setFilters(filters.filter((_, i) => i !== index));
-  };
-
-  const updateFilter = (index: number, updates: Partial<Filter>) => {
-    const newFilters = [...filters];
-    newFilters[index] = { ...newFilters[index], ...updates };
-    setFilters(newFilters);
   };
 
   const calculateAggregation = (columnId: string, aggregation: string) => {
@@ -227,14 +195,16 @@ export function VirtualTable({ data, columns, onDataChange, isLoading = false }:
           />
         </div>
         
-        <Button 
-          variant={filters.length > 0 ? 'primary' : 'outline'} 
-          size="sm"
-          onClick={() => setShowFilters(!showFilters)}
-        >
-          <Filter className="w-4 h-4 mr-1" />
-          Фильтры {filters.length > 0 && `(${filters.length})`}
-        </Button>
+        {onOpenFilters && (
+          <Button 
+            variant={activeFiltersCount > 0 ? 'primary' : 'outline'} 
+            size="sm"
+            onClick={onOpenFilters}
+          >
+            <Filter className="w-4 h-4 mr-1" />
+            Фильтры {activeFiltersCount > 0 && `(${activeFiltersCount})`}
+          </Button>
+        )}
         
         <Button variant="outline" size="sm" onClick={handleCopy}>
           <Copy className="w-4 h-4 mr-1" />
@@ -256,71 +226,6 @@ export function VirtualTable({ data, columns, onDataChange, isLoading = false }:
         </div>
       </div>
 
-      {/* Filters Panel */}
-      {showFilters && filters.length > 0 && (
-        <div className="p-3 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-medium text-gray-700">Активные фильтры</h4>
-            <Button variant="ghost" size="sm" onClick={addFilter}>
-              <Plus className="w-4 h-4 mr-1" />
-              Добавить
-            </Button>
-          </div>
-          <div className="space-y-2">
-            {filters.map((filter, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <select
-                  value={filter.columnId}
-                  onChange={(e) => updateFilter(idx, { columnId: e.target.value })}
-                  className="px-2 py-1 border border-gray-300 rounded text-sm"
-                >
-                  {columns.map(col => (
-                    <option key={col.id} value={col.id}>{col.name}</option>
-                  ))}
-                </select>
-                
-                <select
-                  value={filter.operator}
-                  onChange={(e) => updateFilter(idx, { operator: e.target.value as any })}
-                  className="px-2 py-1 border border-gray-300 rounded text-sm"
-                >
-                  <option value="contains">Содержит</option>
-                  <option value="equals">Равно</option>
-                  <option value="greater">Больше</option>
-                  <option value="less">Меньше</option>
-                  <option value="between">Между</option>
-                </select>
-                
-                <input
-                  type="text"
-                  value={filter.value}
-                  onChange={(e) => updateFilter(idx, { value: e.target.value })}
-                  placeholder="Значение"
-                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
-                />
-                
-                {filter.operator === 'between' && (
-                  <input
-                    type="text"
-                    value={filter.value2 || ''}
-                    onChange={(e) => updateFilter(idx, { value2: e.target.value })}
-                    placeholder="До"
-                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
-                  />
-                )}
-                
-                <button
-                  onClick={() => removeFilter(idx)}
-                  className="p-1 hover:bg-gray-200 rounded"
-                >
-                  <X className="w-4 h-4 text-gray-500" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Table Container */}
       <div 
         ref={tableRef}
@@ -338,7 +243,7 @@ export function VirtualTable({ data, columns, onDataChange, isLoading = false }:
         >
           {columnVirtualizer.getVirtualItems().map((virtualColumn) => {
             const column = columns[virtualColumn.index];
-            const isSorted = sortConfig?.columnId === column.id;
+            const isSorted = effectiveSortConfig?.columnId === column.id;
             
             return (
               <div
@@ -354,14 +259,14 @@ export function VirtualTable({ data, columns, onDataChange, isLoading = false }:
                 }}
               >
                 <button
-                  onClick={() => handleSort(column.id)}
+                  onClick={() => handleSortClick(column.id)}
                   className="flex items-center justify-between gap-2 px-3 py-2 w-full h-full hover:bg-gray-200 transition-colors"
                 >
                   <span className="font-semibold text-sm text-gray-700 truncate">
                     {column.name}
                   </span>
                   {isSorted && (
-                    sortConfig.direction === 'asc' 
+                    effectiveSortConfig?.order === 'asc' 
                       ? <SortAsc className="w-4 h-4 text-green-600 flex-shrink-0" />
                       : <SortDesc className="w-4 h-4 text-green-600 flex-shrink-0" />
                   )}

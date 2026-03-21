@@ -1,20 +1,29 @@
 import React, { useState } from 'react';
-import { Sparkles, Send, Loader2 } from 'lucide-react';
+import { Sparkles, Send, Loader2, X } from 'lucide-react';
+import { Button } from '../UI/Button';
 
 interface NaturalLanguageInputProps {
   onSubmit: (query: string) => Promise<void>;
   isLoading?: boolean;
   suggestions?: string[];
+  aiResponse?: string | null;
+  onCloseResponse?: () => void;
 }
 
 const exampleQueries = [
-  "Покажи сумму сделок по месяцам",
+  "Покажи сумму продаж по месяцам",
   "Средняя сумма продаж по регионам",
   "Количество сделок в Москве за последний квартал",
   "Топ-10 менеджеров по выручке"
 ];
 
-export function NaturalLanguageInput({ onSubmit, isLoading, suggestions = exampleQueries }: NaturalLanguageInputProps) {
+export function NaturalLanguageInput({ 
+  onSubmit, 
+  isLoading, 
+  suggestions = exampleQueries,
+  aiResponse,
+  onCloseResponse 
+}: NaturalLanguageInputProps) {
   const [query, setQuery] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,54 +40,84 @@ export function NaturalLanguageInput({ onSubmit, isLoading, suggestions = exampl
   };
 
   return (
-    <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-4 border border-green-100">
-      <div className="flex items-center gap-2 mb-3">
-        <Sparkles className="w-5 h-5 text-green-600" />
-        <h3 className="font-semibold text-gray-900">AI-помощник</h3>
-        <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
-          Beta
-        </span>
-      </div>
-      
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <div className="flex-1 relative">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Опишите, что хотите увидеть..."
-            className="w-full px-4 py-2 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            disabled={isLoading}
-          />
-          {isLoading && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600 animate-spin" />
-          )}
+    <div className="space-y-4">
+      <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-4 border border-green-100">
+        <div className="flex items-center gap-2 mb-3">
+          <Sparkles className="w-5 h-5 text-green-600" />
+          <h3 className="font-semibold text-gray-900">AI-помощник</h3>
+          <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+            Beta
+          </span>
         </div>
-        <button
-          type="submit"
-          disabled={!query.trim() || isLoading}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-        >
-          <Send className="w-4 h-4" />
-          Отправить
-        </button>
-      </form>
-      
-      <div className="mt-3">
-        <p className="text-xs text-gray-500 mb-2">Примеры запросов:</p>
-        <div className="flex flex-wrap gap-2">
-          {suggestions.map((suggestion, index) => (
-            <button
-              key={index}
-              onClick={() => handleSuggestionClick(suggestion)}
-              className="text-xs px-2 py-1 bg-white border border-gray-200 rounded-full text-gray-600 hover:border-green-400 hover:text-green-600 transition-colors"
+        
+        <form onSubmit={handleSubmit} className="flex gap-2">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Опишите, что хотите увидеть..."
+              className="w-full px-4 py-2 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
               disabled={isLoading}
-            >
-              {suggestion}
-            </button>
-          ))}
+            />
+            {isLoading && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600 animate-spin" />
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={!query.trim() || isLoading}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            <Send className="w-4 h-4" />
+            Отправить
+          </button>
+        </form>
+        
+        <div className="mt-3">
+          <p className="text-xs text-gray-500 mb-2">Примеры запросов:</p>
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((suggestion, index) => (
+              <button
+                key={index}
+                onClick={() => handleSuggestionClick(suggestion)}
+                className="text-xs px-2 py-1 bg-white border border-gray-200 rounded-full text-gray-600 hover:border-green-400 hover:text-green-600 transition-colors"
+                disabled={isLoading}
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* AI Response Dialog */}
+      {aiResponse && (
+        <div className="bg-white rounded-xl shadow-lg border border-green-200 overflow-hidden animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-blue-50 border-b border-green-100">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-green-600" />
+              <h3 className="font-semibold text-gray-900">Ответ AI-помощника</h3>
+            </div>
+            <button
+              onClick={onCloseResponse}
+              className="p-1 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+          <div className="p-4">
+            <div className="prose prose-sm max-w-none">
+              <p className="text-gray-700 whitespace-pre-wrap">{aiResponse}</p>
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-xs text-gray-400">
+                💡 Рекомендация применена к таблице
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -23,10 +23,8 @@ export function CSVUploader({ onDataLoaded, isDisabled = false }: CSVUploaderPro
   const [fileName, setFileName] = useState<string | null>(null);
 
   const detectColumnType = (values: string[]): 'number' | 'string' | 'date' => {
-    // Проверяем первые 100 значений
     const sampleValues = values.slice(0, 100);
     
-    // Проверка на числа
     const numberCount = sampleValues.filter(v => {
       const num = parseFloat(v);
       return !isNaN(num) && isFinite(num);
@@ -36,7 +34,6 @@ export function CSVUploader({ onDataLoaded, isDisabled = false }: CSVUploaderPro
       return 'number';
     }
     
-    // Проверка на даты (простая)
     const dateRegex = /^\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4}|\d{2}\.\d{2}\.\d{4}/;
     const dateCount = sampleValues.filter(v => dateRegex.test(v)).length;
     
@@ -51,10 +48,8 @@ export function CSVUploader({ onDataLoaded, isDisabled = false }: CSVUploaderPro
     const lines = text.split(/\r?\n/).filter(line => line.trim());
     if (lines.length === 0) return [];
     
-    // Парсим заголовки
     const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
     
-    // Парсим данные
     const data = [];
     for (let i = 1; i < lines.length; i++) {
       const values = parseCSVLine(lines[i]);
@@ -111,7 +106,6 @@ export function CSVUploader({ onDataLoaded, isDisabled = false }: CSVUploaderPro
         throw new Error('Файл не содержит данных');
       }
       
-      // Определяем колонки
       const sampleRow = data[0];
       const columns: Column[] = Object.keys(sampleRow).map(key => {
         const values = data.map(row => String(row[key] || ''));
@@ -125,10 +119,9 @@ export function CSVUploader({ onDataLoaded, isDisabled = false }: CSVUploaderPro
         };
       });
       
-      setUploadStatus({ type: 'success', message: `Загружено ${data.length} строк, ${columns.length} колонок` });
+      setUploadStatus({ type: 'success', message: `Загружено ${data.length.toLocaleString()} строк, ${columns.length} колонок` });
       onDataLoaded(data, columns);
       
-      // Сбрасываем статус через 3 секунды
       setTimeout(() => {
         setUploadStatus({ type: null, message: '' });
       }, 3000);
@@ -157,10 +150,17 @@ export function CSVUploader({ onDataLoaded, isDisabled = false }: CSVUploaderPro
     setDragActive(false);
     
     const files = e.dataTransfer.files;
-    if (files && files[0] && files[0].type === 'text/csv') {
-      processFile(files[0]);
-    } else {
-      setUploadStatus({ type: 'error', message: 'Пожалуйста, загрузите файл в формате CSV' });
+    if (files && files[0]) {
+      // Проверяем расширение файла
+      const fileName = files[0].name;
+      if (fileName.endsWith('.csv')) {
+        processFile(files[0]);
+      } else {
+        setUploadStatus({ type: 'error', message: 'Пожалуйста, загрузите файл в формате CSV' });
+        setTimeout(() => {
+          setUploadStatus({ type: null, message: '' });
+        }, 3000);
+      }
     }
   }, [processFile]);
 
@@ -228,7 +228,7 @@ export function CSVUploader({ onDataLoaded, isDisabled = false }: CSVUploaderPro
               Перетащите CSV файл сюда или <span className="text-green-600 font-medium">нажмите для выбора</span>
             </p>
             <p className="text-sm text-gray-400">
-              Поддерживаются файлы с разделителями запятая (,) или точка с запятой (;)
+              Поддерживаются файлы с разделителями запятая (,)
             </p>
             {fileName && !uploadStatus.type && (
               <div className="mt-3 inline-flex items-center gap-2 text-sm text-gray-500 bg-white px-3 py-1 rounded-full">
@@ -238,6 +238,7 @@ export function CSVUploader({ onDataLoaded, isDisabled = false }: CSVUploaderPro
                   onClick={(e) => {
                     e.stopPropagation();
                     setFileName(null);
+                    setUploadStatus({ type: null, message: '' });
                   }}
                   className="hover:text-red-500"
                 >

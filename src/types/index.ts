@@ -73,3 +73,10 @@ export interface Attribute {
     createdAt: Date;
     updatedAt: Date;
   }
+
+  export interface Filter {
+  field: string;
+  operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'between';
+  value: any;
+  value2?: any;
+}
