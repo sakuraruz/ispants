@@ -1,5 +1,7 @@
 package org.example;
 
+import service.AnalyticsService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
 
@@ -7,6 +9,9 @@ import java.util.*;
 @RequestMapping("/api")
 @CrossOrigin(origins = "http://localhost:3000")
 public class AnalyticsController {
+
+    @Autowired
+    private AnalyticsService analyticsService;
 
     // ========== 1. ПРОВЕРКА РАБОТЫ ==========
     @GetMapping("/health")
@@ -19,72 +24,77 @@ public class AnalyticsController {
     public List<Map<String, Object>> getAttributes() {
         List<Map<String, Object>> attributes = new ArrayList<>();
 
-        attributes.add(createAttr(1, "region", "string", "Регион"));
-        attributes.add(createAttr(2, "city", "string", "Город"));
-        attributes.add(createAttr(3, "product_category", "string", "Категория"));
-        attributes.add(createAttr(4, "product_name", "string", "Продукт"));
-        attributes.add(createAttr(5, "quarter", "string", "Квартал"));
-        attributes.add(createAttr(6, "year", "string", "Год"));
-        attributes.add(createAttr(7, "sales_amount", "number", "Сумма продаж"));
-        attributes.add(createAttr(8, "profit", "number", "Прибыль"));
-        attributes.add(createAttr(9, "quantity", "number", "Количество"));
-        attributes.add(createAttr(10, "customer_count", "number", "Клиенты"));
+        // attributes.add(createAttr(1, "region", "string", "Регион"));
+        // attributes.add(createAttr(2, "city", "string", "Город"));
+        // attributes.add(createAttr(3, "product_category", "string", "Категория"));
+        // attributes.add(createAttr(4, "product_name", "string", "Продукт"));
+        // attributes.add(createAttr(5, "quarter", "string", "Квартал"));
+        // attributes.add(createAttr(6, "year", "string", "Год"));
+        // attributes.add(createAttr(7, "sales_amount", "number", "Сумма продаж"));
+        // attributes.add(createAttr(8, "profit", "number", "Прибыль"));
+        // attributes.add(createAttr(9, "quantity", "number", "Количество"));
+        // attributes.add(createAttr(10, "customer_count", "number", "Клиенты"));
 
-        return attributes;
+        // return attributes;
+        return analyticsService.getAttributes();
     }
 
     // ========== 3. ПОЛУЧЕНИЕ ЗНАЧЕНИЙ АТРИБУТА ==========
     @GetMapping("/attributes/{name}/values")
     public Map<String, Object> getAttributeValues(@PathVariable("name") String name) {
-        List<String> values = getMockValues(name);
-        Map<String, Object> result = new HashMap<>();
-        result.put("attribute", name);
-        result.put("values", values);
-        result.put("count", values.size());
-        return result;
+        // List<String> values = getMockValues(name);
+        // Map<String, Object> result = new HashMap<>();
+        // result.put("attribute", name);
+        // result.put("values", values);
+        // result.put("count", values.size());
+        // return result;
+        return analyticsService.getAttributeValues(name);
     }
 
     // ========== 4. ПОСТРОЕНИЕ СВОДНОЙ ТАБЛИЦЫ ==========
     @PostMapping("/pivot")
     public Map<String, Object> buildPivot(@RequestBody Map<String, Object> request) {
 
-        List<String> rows = (List<String>) request.getOrDefault("rows", List.of("region"));
-        List<String> columns = (List<String>) request.getOrDefault("columns", List.of("quarter"));
-        List<String> measures = (List<String>) request.getOrDefault("measures", List.of("sales_amount"));
+        // List<String> rows = (List<String>) request.getOrDefault("rows", List.of("region"));
+        // List<String> columns = (List<String>) request.getOrDefault("columns", List.of("quarter"));
+        // List<String> measures = (List<String>) request.getOrDefault("measures", List.of("sales_amount"));
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("rows", rows);
-        response.put("columns", columns);
-        response.put("measures", measures);
-        response.put("data", generateMockData(rows, columns, measures));
+        // Map<String, Object> response = new HashMap<>();
+        // response.put("status", "success");
+        // response.put("rows", rows);
+        // response.put("columns", columns);
+        // response.put("measures", measures);
+        // response.put("data", generateMockData(rows, columns, measures));
 
-        return response;
+        // return response;
+        return analyticsService.buildPivot(request);
     }
 
     // ========== 5. ИИ-РЕКОМЕНДАЦИЯ ==========
     @PostMapping("/ai/recommend")
     public Map<String, Object> recommendPivot(@RequestBody Map<String, String> request) {
-        return Map.of(
-                "status", "success",
-                "recommendations", List.of(
-                        Map.of(
-                                "name", "Анализ продаж по регионам",
-                                "rows", List.of("region"),
-                                "columns", List.of("quarter"),
-                                "measures", List.of("sales_amount"),
-                                "aggregation", "SUM"
-                        ),
-                        Map.of(
-                                "name", "Топ продуктов по прибыли",
-                                "rows", List.of("product_category"),
-                                "measures", List.of("profit"),
-                                "aggregation", "SUM",
-                                "sort", "DESC",
-                                "limit", 10
-                        )
-                )
-        );
+        // return Map.of(
+        //         "status", "success",
+        //         "recommendations", List.of(
+        //                 Map.of(
+        //                         "name", "Анализ продаж по регионам",
+        //                         "rows", List.of("region"),
+        //                         "columns", List.of("quarter"),
+        //                         "measures", List.of("sales_amount"),
+        //                         "aggregation", "SUM"
+        //                 ),
+        //                 Map.of(
+        //                         "name", "Топ продуктов по прибыли",
+        //                         "rows", List.of("product_category"),
+        //                         "measures", List.of("profit"),
+        //                         "aggregation", "SUM",
+        //                         "sort", "DESC",
+        //                         "limit", 10
+        //                 )
+        //         )
+        // );
+
+        return analyticsService.recommendPivot(request);
     }
 
 
