@@ -9,9 +9,9 @@ import java.sql.Statement;
 public class DatabaseChecker {
 
     // ВАЖНО: Укажите здесь актуальные данные для подключения к вашей БД
-    private static final String URL = "jdbc:postgresql://localhost:5432/analytics_db";
-    private static final String USER = "root";
-    private static final String PASSWORD = "rootpassword";
+    private static final String URL = "jdbc:postgresql://localhost:5432/postgres";
+    private static final String USER = "postgres";
+    private static final String PASSWORD = "!!!2006!!!";
 
     public static void main(String[] args) {
         System.out.println("⏳ Начинаем проверку подключения к базе данных...");
