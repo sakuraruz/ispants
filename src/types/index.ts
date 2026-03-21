@@ -19,19 +19,19 @@ export interface Attribute {
     columns: string[];
     rows: PivotRow[];
     totals?: Totals;
-  }
-  
-  export interface PivotRow {
+}
+
+export interface PivotRow {
     label: string;
     values: any[];
     subtotal?: any[];
-  }
-  
-  export interface Totals {
+}
+
+export interface Totals {
     rowTotals: any[];
     columnTotals: any[];
     grandTotal: any;
-  }
+}
   
   export type AggregationType = 
     | 'sum' 

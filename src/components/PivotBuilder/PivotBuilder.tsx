@@ -5,6 +5,7 @@ import { usePivot } from '../../hooks/usePivot';
 import { VirtualTable } from '../VirtualTable/VirtualTable';
 import { NaturalLanguageInput } from '../AIPanel/NaturalLanguageInput';
 import { CSVUploader } from '../UI/CSVUploader';
+import { DatabaseLoader } from '../DataLoader'; // НОВЫЙ ИМПОРТ
 import { Button } from '../UI/Button';
 import { FilterDialog } from './FilterDialog';
 import { FormulaBar, Formula } from '../FormulaBar';
@@ -38,27 +39,45 @@ export function PivotBuilder() {
   const [filters, setFilters] = useState<FilterType[]>([]);
   const [sortConfig, setSortConfig] = useState<{ field: string; order: 'asc' | 'desc' } | null>(null);
   const [aiResponse, setAiResponse] = useState<string | null>(null);
-  
-  // State for formulas
   const [formulas, setFormulas] = useState<Formula[]>([]);
+  const [dataSource, setDataSource] = useState<'db' | 'csv' | null>(null);
   
   // State for CSV data
   const [csvData, setCsvData] = useState<any[] | null>(null);
   const [csvColumns, setCsvColumns] = useState<Column[] | null>(null);
+  
+  // State for DB data
+  const [dbData, setDbData] = useState<any[] | null>(null);
+  const [dbColumns, setDbColumns] = useState<Column[] | null>(null);
+  const [isDbLoading, setIsDbLoading] = useState(false);
 
   useEffect(() => {
     loadAttributes();
   }, []);
 
+  // Используем либо CSV данные, либо данные из БД
+  const currentData = csvData || dbData;
+  const currentColumns = csvColumns || dbColumns;
+
   const handleCSVDataLoaded = (data: any[], columns: Column[]) => {
     setCsvData(data);
     setCsvColumns(columns);
+    setDbData(null);
+    setDbColumns(null);
+    setDataSource('csv');
+  };
+
+  const handleDBDataLoaded = (data: any[], columns: Column[]) => {
+    setDbData(data);
+    setDbColumns(columns);
+    setCsvData(null);
+    setCsvColumns(null);
+    setDataSource('db');
   };
 
   const handleFormulasChange = (newFormulas: Formula[]) => {
     setFormulas(newFormulas);
-    // Log formulas for backend integration
-    console.log('Формулы обновлены (заглушка):', newFormulas);
+    console.log('Формулы обновлены:', newFormulas);
   };
 
   const handleNaturalLanguageQuery = async (query: string) => {
@@ -72,9 +91,6 @@ export function PivotBuilder() {
 - Общая сумма продаж: 9,500,000 ₽
 - Средняя сумма продаж: 791,667 ₽
 - Количество транзакций: 12
-
-💡 Рекомендация:
-Для более детального анализа рекомендую добавить фильтр по дате или категории товаров.
 
 📐 Активные формулы:
 ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('\n') : '- Нет активных формул'}`;
@@ -92,7 +108,7 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
     });
     setAggregations(newAggregations);
     
-    if (csvData) {
+    if (currentData) {
       await buildPivot({
         rows: result.pivotRequest.rows,
         columns: result.pivotRequest.columns,
@@ -105,20 +121,19 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
   const handleApplyFilters = async (newFilters: FilterType[]) => {
     setFilters(newFilters);
     setShowFilterDialog(false);
-    console.log('Фильтры применены (заглушка):', newFilters);
+    console.log('Фильтры применены:', newFilters);
   };
 
   const handleSort = async (field: string, order: 'asc' | 'desc') => {
     setSortConfig({ field, order });
-    console.log('Сортировка применена (заглушка):', { field, order });
+    console.log('Сортировка применена:', { field, order });
   };
 
   const closeAiResponse = () => {
     setAiResponse(null);
   };
 
-  // Prepare available fields for formulas
-  const availableFields = csvColumns?.map(col => ({
+  const availableFields = currentColumns?.map(col => ({
     id: col.id,
     name: col.name,
     type: col.type
@@ -126,7 +141,6 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
@@ -134,7 +148,7 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
               Гибкий UI для сводных таблиц
             </h1>
             <p className="text-sm text-gray-500">
-              Анализируйте данные с помощью ИИ и формул
+              Анализируйте данные из PostgreSQL с помощью ИИ
             </p>
           </div>
           <div className="flex gap-2">
@@ -142,7 +156,7 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
               variant="outline"
               size="sm"
               onClick={() => setShowSaveDialog(true)}
-              disabled={!csvData}
+              disabled={!currentData}
             >
               <Save className="w-4 h-4 mr-1" />
               Сохранить
@@ -151,19 +165,30 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
         </div>
       </header>
 
-      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* CSV Upload Section */}
+        {/* Data Source Selection - НОВЫЙ БЛОК */}
         <div className="mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-3">
-            <Database className="w-5 h-5 text-green-600" />
-            Загрузка данных
-          </h2>
-          <CSVUploader onDataLoaded={handleCSVDataLoaded} isDisabled={isLoading} />
+          <DatabaseLoader 
+            onDataLoaded={handleDBDataLoaded}
+            isLoading={isDbLoading}
+            setIsLoading={setIsDbLoading}
+          />
         </div>
 
-        {/* Formulas Section - NEW */}
-        {csvData && (
+        {/* CSV Upload (как альтернатива) */}
+        <div className="mb-6">
+          <details className="group">
+            <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
+              📁 Или загрузить CSV файл
+            </summary>
+            <div className="mt-3">
+              <CSVUploader onDataLoaded={handleCSVDataLoaded} isDisabled={isLoading || isDbLoading} />
+            </div>
+          </details>
+        </div>
+
+        {/* Formulas Section */}
+        {currentData && (
           <div className="mb-6">
             <FormulaBar
               formulas={formulas}
@@ -175,7 +200,7 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
         )}
 
         {/* AI Assistant */}
-        {csvData && (
+        {currentData && (
           <div className="mb-6">
             <NaturalLanguageInput
               onSubmit={handleNaturalLanguageQuery}
@@ -241,14 +266,14 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
           </div>
         )}
 
-        {/* Active Formulas Bar - NEW */}
+        {/* Active Formulas Bar */}
         {formulas.length > 0 && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-green-700">Активные формулы:</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {formulas.map((formula, idx) => (
+              {formulas.map((formula) => (
                 <div key={formula.id} className="px-2 py-1 bg-white border border-green-200 rounded text-sm text-gray-700">
                   <span className="font-mono text-green-600 mr-1">
                     {formula.aggregation === 'sum' && '∑'}
@@ -268,6 +293,19 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
           </div>
         )}
 
+        {/* Data Source Indicator */}
+        {dataSource && (
+          <div className="mb-4 p-2 bg-gray-100 rounded-lg text-sm text-gray-600 flex items-center gap-2">
+            <Database className="w-4 h-4" />
+            <span>Источник данных: {dataSource === 'db' ? 'PostgreSQL' : 'CSV файл'}</span>
+            {dataSource === 'db' && (
+              <span className="text-xs text-green-600">
+                ✓ {currentData?.length || 0} строк загружено
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Table Area */}
         <div className="flex gap-6">
           <div className="flex-1 min-w-0">
@@ -278,11 +316,11 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
             )}
             
             <div>
-              {csvData && csvColumns ? (
+              {currentData && currentColumns ? (
                 <div className="h-[600px]">
                   <VirtualTable
-                    data={csvData}
-                    columns={csvColumns}
+                    data={currentData}
+                    columns={currentColumns}
                     onDataChange={setCsvData}
                     onSort={handleSort}
                     sortConfig={sortConfig}
@@ -290,7 +328,7 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
                     activeFiltersCount={filters.length}
                   />
                 </div>
-              ) : isLoading ? (
+              ) : isLoading || isDbLoading ? (
                 <div className="flex items-center justify-center h-96 bg-white rounded-lg border border-gray-200">
                   <div className="text-center">
                     <RefreshCw className="w-8 h-8 text-green-600 animate-spin mx-auto mb-2" />
@@ -301,13 +339,13 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
                 <div className="flex items-center justify-center h-96 bg-white rounded-lg border border-gray-200">
                   <div className="text-center">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Sparkles className="w-8 h-8 text-gray-400" />
+                      <Database className="w-8 h-8 text-gray-400" />
                     </div>
                     <p className="text-gray-500">
-                      Загрузите CSV файл для начала работы
+                      Выберите источник данных для начала работы
                     </p>
                     <p className="text-sm text-gray-400 mt-1">
-                      Поддерживаются файлы в формате CSV
+                      PostgreSQL или загрузите CSV файл
                     </p>
                   </div>
                 </div>
@@ -317,16 +355,14 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
         </div>
       </div>
       
-      {/* Filter Dialog */}
       <FilterDialog
         isOpen={showFilterDialog}
         onClose={() => setShowFilterDialog(false)}
         onApply={handleApplyFilters}
-        columns={csvColumns || []}
+        columns={currentColumns || []}
         initialFilters={filters}
       />
       
-      {/* Save Dialog */}
       {showSaveDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
@@ -341,16 +377,11 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
               className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
             <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowSaveDialog(false)}
-                fullWidth
-              >
+              <Button variant="outline" onClick={() => setShowSaveDialog(false)} fullWidth>
                 Отмена
               </Button>
               <Button
                 onClick={() => {
-                  // Save formulas state as well
                   const stateToSave = {
                     formulas,
                     filters,
@@ -358,7 +389,8 @@ ${formulas.length > 0 ? formulas.map(f => `- ${f.name}: ${f.expression}`).join('
                     rows,
                     columns,
                     values,
-                    aggregations
+                    aggregations,
+                    dataSource
                   };
                   console.log('Сохранённое состояние:', stateToSave);
                   setShowSaveDialog(false);
