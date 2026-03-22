@@ -4,7 +4,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Repository
 public class AnalyticsRepository {
@@ -16,8 +15,9 @@ public class AnalyticsRepository {
     }
 
     public List<Map<String, Object>> getRawDataset(int limit, int offset) {
-        String sql = "SELECT id, region, quarter, sales_amount, profit, quantity, product_category, year, created_at FROM dataset LIMIT ? OFFSET ?";
-        return jdbcTemplate.queryForList(sql, limit, offset);
+        int safeLimit = Math.min(limit, 100000);
+        String sql = "SELECT row_number, region, product_category, year, quarter, sales_amount, profit, quantity FROM dataset ORDER BY row_number LIMIT ? OFFSET ?";
+        return jdbcTemplate.queryForList(sql, safeLimit, offset);
     }
 
     public List<Map<String, Object>> getDynamicPivotData(List<String> dimensions, List<String> measures, String aggFunc) {
@@ -26,9 +26,7 @@ public class AnalyticsRepository {
         }
         
         String groupByCols = dimensions.isEmpty() ? "" : String.join(", ", dimensions);
-        String aggCols = measures.stream()
-                .map(m -> aggFunc + "(" + m + ") as " + m)
-                .collect(Collectors.joining(", "));
+        String aggCols = String.join(", ", measures.stream().map(m -> aggFunc + "(" + m + ") as " + m).toArray(String[]::new));
         String selectFields = groupByCols.isEmpty() ? aggCols : (groupByCols + (aggCols.isEmpty() ? "" : ", " + aggCols));
         
         String sql = "SELECT " + selectFields + " FROM dataset";
@@ -36,7 +34,7 @@ public class AnalyticsRepository {
             sql += " GROUP BY " + groupByCols;
         }
         sql += " ORDER BY " + (dimensions.isEmpty() ? "1" : dimensions.get(0));
-        sql += " LIMIT 5000";
+        sql += " LIMIT 50000";
         
         return jdbcTemplate.queryForList(sql);
     }
@@ -44,73 +42,40 @@ public class AnalyticsRepository {
     public List<Map<String, Object>> getAttributesFromDB() {
         List<Map<String, Object>> result = new ArrayList<>();
         
-        // Явно определяем атрибуты для понятного отображения
-        List<Map<String, Object>> attrs = new ArrayList<>();
+        Map<String, Object> idAttr = new HashMap<>();
+        idAttr.put("id", 1);
+        idAttr.put("name", "row_number");
+        idAttr.put("displayName", "ID");
+        idAttr.put("type", "dimension");
+        idAttr.put("dataType", "number");
+        idAttr.put("aggregations", List.of("COUNT", "COUNT_DISTINCT"));
+        result.add(idAttr);
         
-        Map<String, Object> region = new HashMap<>();
-        region.put("id", 1);
-        region.put("name", "region");
-        region.put("type", "dimension");
-        region.put("dataType", "string");
-        region.put("displayName", "Регион");
-        region.put("aggregations", List.of("COUNT", "COUNT_DISTINCT"));
-        attrs.add(region);
+        String[][] attrs = {
+            {"region", "Регион", "dimension", "string"},
+            {"product_category", "Категория", "dimension", "string"},
+            {"year", "Год", "dimension", "number"},
+            {"quarter", "Квартал", "dimension", "string"},
+            {"sales_amount", "Сумма продаж", "measure", "number"},
+            {"profit", "Прибыль", "measure", "number"},
+            {"quantity", "Количество", "measure", "number"}
+        };
         
-        Map<String, Object> quarter = new HashMap<>();
-        quarter.put("id", 2);
-        quarter.put("name", "quarter");
-        quarter.put("type", "dimension");
-        quarter.put("dataType", "string");
-        quarter.put("displayName", "Квартал");
-        quarter.put("aggregations", List.of("COUNT", "COUNT_DISTINCT"));
-        attrs.add(quarter);
+        int id = 2;
+        for (String[] attr : attrs) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", id++);
+            map.put("name", attr[0]);
+            map.put("displayName", attr[1]);
+            map.put("type", attr[2]);
+            map.put("dataType", attr[3]);
+            map.put("aggregations", attr[2].equals("measure") ? 
+                    List.of("SUM", "AVG", "MIN", "MAX", "COUNT") :
+                    List.of("COUNT", "COUNT_DISTINCT"));
+            result.add(map);
+        }
         
-        Map<String, Object> productCategory = new HashMap<>();
-        productCategory.put("id", 3);
-        productCategory.put("name", "product_category");
-        productCategory.put("type", "dimension");
-        productCategory.put("dataType", "string");
-        productCategory.put("displayName", "Категория товара");
-        productCategory.put("aggregations", List.of("COUNT", "COUNT_DISTINCT"));
-        attrs.add(productCategory);
-        
-        Map<String, Object> year = new HashMap<>();
-        year.put("id", 4);
-        year.put("name", "year");
-        year.put("type", "dimension");
-        year.put("dataType", "number");
-        year.put("displayName", "Год");
-        year.put("aggregations", List.of("SUM", "AVG", "MIN", "MAX", "COUNT"));
-        attrs.add(year);
-        
-        Map<String, Object> salesAmount = new HashMap<>();
-        salesAmount.put("id", 5);
-        salesAmount.put("name", "sales_amount");
-        salesAmount.put("type", "measure");
-        salesAmount.put("dataType", "number");
-        salesAmount.put("displayName", "Сумма продаж");
-        salesAmount.put("aggregations", List.of("SUM", "AVG", "MIN", "MAX", "COUNT"));
-        attrs.add(salesAmount);
-        
-        Map<String, Object> profit = new HashMap<>();
-        profit.put("id", 6);
-        profit.put("name", "profit");
-        profit.put("type", "measure");
-        profit.put("dataType", "number");
-        profit.put("displayName", "Прибыль");
-        profit.put("aggregations", List.of("SUM", "AVG", "MIN", "MAX", "COUNT"));
-        attrs.add(profit);
-        
-        Map<String, Object> quantity = new HashMap<>();
-        quantity.put("id", 7);
-        quantity.put("name", "quantity");
-        quantity.put("type", "measure");
-        quantity.put("dataType", "number");
-        quantity.put("displayName", "Количество");
-        quantity.put("aggregations", List.of("SUM", "AVG", "MIN", "MAX", "COUNT"));
-        attrs.add(quantity);
-        
-        return attrs;
+        return result;
     }
 
     public List<String> getAttributeValues(String attributeName) {
@@ -118,7 +83,7 @@ public class AnalyticsRepository {
             String sql = "SELECT DISTINCT " + attributeName + " FROM dataset WHERE " + attributeName + " IS NOT NULL ORDER BY " + attributeName + " LIMIT 100";
             return jdbcTemplate.queryForList(sql, String.class);
         } catch (Exception e) {
-            return List.of("Москва", "СПб", "Казань", "Новосибирск");
+            return List.of("Москва", "СПб", "Казань");
         }
     }
 }
